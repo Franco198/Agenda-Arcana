@@ -1,0 +1,248 @@
+draw_set_font(fnt_App); 
+
+// =============================================================
+// CAPA 1: FONDO PANTALLA
+// =============================================================
+draw_set_color(col_fondo_app);
+draw_rectangle(ui_x, ui_y, ui_x + ui_ancho, ui_y + ui_alto, false);
+
+// =============================================================
+// CAPA 2: INTERFAZ PIXEL ART
+// =============================================================
+
+// HEADER
+var _header_h = 140; 
+// Usamos el sprite estirado y lo teñimos del color del header
+draw_sprite_stretched_ext(spr_ui_box, 0, ui_x, ui_y, ui_ancho, _header_h, col_header, 1);
+
+draw_set_halign(fa_center); draw_set_color(c_white);
+draw_text(ui_x + (ui_ancho/2), ui_y + (_header_h/2) - 15, "PERSONA OS"); 
+
+// BOTÓN BORRAR
+if (state == "AGENDA" && !menu_abierto) {
+    draw_set_font(-1); 
+    var _bx_del = ui_x + ui_ancho - 80; var _by_del = ui_y + (_header_h/2);
+    
+    // Botoncito cuadrado pixel art
+    var _hover_del = point_in_circle(device_mouse_x_to_gui(0), device_mouse_y_to_gui(0), _bx_del, _by_del, 30);
+    var _col_del = _hover_del ? c_red : c_white;
+    var _scale_del = 40; // Tamaño botón borrar
+    
+    // Dibujamos el sprite centrado manualmente
+    draw_sprite_stretched_ext(spr_ui_box, 0, _bx_del - 20, _by_del - 20, 40, 40, _col_del, 1);
+    
+    if (_hover_del && mouse_check_button_pressed(mb_left)) {
+        for(var k=0; k<array_length(global.agenda); k++) global.agenda[k].mascara_asignada = noone;
+    }
+    
+    draw_set_color(c_black); draw_text(_bx_del, _by_del - 12, "X"); 
+    draw_set_font(fnt_App); 
+}
+draw_set_halign(fa_left);
+
+// --- CONTENIDO ---
+
+if (state == "AGENDA") {
+
+    // 1. LISTA DE EVENTOS
+    var _inicio_lista_y = ui_y + _header_h + 30; 
+    var _altura_slot = 150; var _separacion = 170;  
+    
+    for (var i = 0; i < array_length(global.agenda); i++) {
+        var _evt = global.agenda[i];
+        var _yy = _inicio_lista_y + (i * _separacion);
+        var _x1 = ui_x + 20; var _x2 = ui_x + ui_ancho - 20; var _y2 = _yy + _altura_slot;
+        
+        // Lógica duplicados
+        var _es_duplicado = false;
+        if (_evt.mascara_asignada != noone) {
+            if (esta_en_uso(_evt.mascara_asignada) > 1) _es_duplicado = true;
+        }
+
+        var _col_actual = _es_duplicado ? make_color_rgb(255, 220, 220) : col_slot;
+        
+        // --- AQUÍ EL CAMBIO A PIXEL ART ---
+        // Dibujamos la caja usando el sprite y 9-slice
+        draw_sprite_stretched_ext(spr_ui_box, 0, _x1, _yy, _x2 - _x1, _y2 - _yy, _col_actual, 1);
+        
+        // Textos
+        draw_set_color(col_texto);
+        draw_text(_x1 + 30, _yy + 20, _evt.hora + " | " + _evt.titulo);
+        
+        if (_evt.mascara_asignada == noone) {
+            draw_set_color(col_gris_txt);
+            draw_text(_x1 + 30, _yy + 70, "Seleccionar..."); 
+        } else {
+            draw_set_color(_es_duplicado ? col_error : col_header);
+            var _txt_mask = _evt.mascara_asignada.nombre;
+            if (_es_duplicado) _txt_mask += " (!)";
+            draw_text(_x1 + 30, _yy + 70, _txt_mask);
+        }
+        
+        // Click
+        var _hover = point_in_rectangle(device_mouse_x_to_gui(0), device_mouse_y_to_gui(0), _x1, _yy, _x2, _y2);
+        if (_hover && mouse_check_button_pressed(mb_left) && !menu_abierto) {
+            global.evento_seleccionado_index = i;
+            menu_abierto = true; mascara_en_preview = noone; 
+        }
+    }
+    
+    // 2. BOTÓN FINALIZAR
+    var _agenda_valida = validar_agenda();
+    var _btn_h = 100;
+    var _bx1 = ui_x + 40; var _by1 = ui_y + ui_alto - _btn_h - 40; 
+    var _bx2 = ui_x + ui_ancho - 40; var _by2 = ui_y + ui_alto - 40;
+    
+    if (!menu_abierto) { 
+        var _col_btn = _agenda_valida ? col_acento : c_gray;
+        
+        // Botón Pixel Art
+        draw_sprite_stretched_ext(spr_ui_box, 0, _bx1, _by1, _bx2 - _bx1, _by2 - _by1, _col_btn, 1);
+        
+        draw_set_halign(fa_center); draw_set_color(c_white);
+        draw_text(ui_x + (ui_ancho/2), _by1 + 30, _agenda_valida ? "FINALIZAR DÍA" : "COMPLETAR");
+        draw_set_halign(fa_left);
+        
+        if (_agenda_valida && point_in_rectangle(device_mouse_x_to_gui(0), device_mouse_y_to_gui(0), _bx1, _by1, _bx2, _by2)) {
+            if (mouse_check_button_pressed(mb_left)) finalizar_dia();
+        }
+    }
+
+    // 3. MENÚ DESPLEGABLE / POPUP
+    var _target_alpha = menu_abierto ? 1 : 0;
+    menu_alpha = lerp(menu_alpha, _target_alpha, 0.2);
+    
+    if (menu_alpha > 0.01) {
+        draw_set_alpha(menu_alpha * 0.9); draw_set_color(c_black);
+        draw_rectangle(ui_x, ui_y, ui_x + ui_ancho, ui_y + ui_alto, false);
+        draw_set_alpha(menu_alpha);
+        
+        var _mx_modal = ui_x + 20;
+        var _my_modal = (ui_y + 150) + (100 * (1 - menu_alpha)); 
+        var _modal_h = ui_alto - 200;
+        
+        // FONDO DEL POPUP (Pixel Art Blanco)
+        draw_sprite_stretched_ext(spr_ui_box, 0, _mx_modal, _my_modal, (ui_x + ui_ancho - 20) - _mx_modal, _modal_h, c_white, 1);
+        
+        var _animacion_terminada = (menu_alpha > 0.95);
+
+        // --- ESTADO 1: LISTA ---
+        if (mascara_en_preview == noone) {
+            draw_set_color(col_texto);
+            draw_text(_mx_modal + 40, _my_modal + 40, "Elige carta:");
+            
+            for (var j = 0; j < array_length(global.lista_mascaras); j++) {
+                var _mascara = global.lista_mascaras[j];
+                var _btn_y = _my_modal + 100 + (j * 120); 
+                var _bx_opt1 = _mx_modal + 20; var _bx_opt2 = ui_x + ui_ancho - 40;
+                
+                var _veces_usada = esta_en_uso(_mascara);
+                if (global.evento_seleccionado_index != -1) {
+                    var _evt_actual = global.agenda[global.evento_seleccionado_index];
+                    if (_evt_actual.mascara_asignada == _mascara) _veces_usada--; 
+                }
+                var _esta_ocupada = (_veces_usada > 0);
+                
+                var _hover_opt = point_in_rectangle(device_mouse_x_to_gui(0), device_mouse_y_to_gui(0), _bx_opt1, _btn_y, _bx_opt2, _btn_y + 100);
+                var _c_opt = (_hover_opt && _animacion_terminada) ? col_slot_hover : c_white;
+                
+                // Botón Opción Lista
+                draw_sprite_stretched_ext(spr_ui_box, 0, _bx_opt1, _btn_y, _bx_opt2 - _bx_opt1, 100, _c_opt, 1);
+                
+                draw_set_color(_esta_ocupada ? col_gris_txt : col_header);
+                draw_text(_bx_opt1 + 20, _btn_y + 30, _mascara.nombre);
+                
+                if (_esta_ocupada) {
+                    draw_set_color(col_error); draw_set_halign(fa_right);
+                    draw_text(_bx_opt2 - 20, _btn_y + 30, "EN USO"); draw_set_halign(fa_left);
+                }
+                
+                if (_hover_opt && mouse_check_button_pressed(mb_left) && _animacion_terminada) {
+                    mascara_en_preview = _mascara; 
+                }
+            }
+        } 
+        // --- ESTADO 2: PREVIEW CARTA ---
+        else {
+            var _cx = ui_x + (ui_ancho/2);
+            var _cy = _my_modal + 470; // Tu ajuste personalizado
+            
+            draw_set_color(col_texto); draw_set_halign(fa_center);
+            draw_text(_cx, _my_modal + 50, "¿Usar " + mascara_en_preview.nombre + "?");
+            
+            if (sprite_exists(mascara_en_preview.sprite)) {
+                var _ancho_original = sprite_get_width(mascara_en_preview.sprite);
+                var _ancho_objetivo = 400; 
+                var _factor_escala = _ancho_objetivo / _ancho_original;
+                
+                gpu_set_tex_filter(true); 
+                draw_sprite_ext(mascara_en_preview.sprite, 0, _cx, _cy, _factor_escala, _factor_escala, 0, c_white, 1);
+                gpu_set_tex_filter(false);
+                
+            } else {
+                draw_set_color(c_gray);
+                draw_rectangle(_cx - 100, _cy - 150, _cx + 100, _cy + 150, false);
+                draw_set_color(c_white); draw_text(_cx, _cy, "ERROR");
+            }
+            
+            var _y_descripcion = _cy + 370; 
+            draw_set_color(col_gris_txt);
+            draw_text_ext(_cx, _y_descripcion, mascara_en_preview.descripcion, 40, ui_ancho - 100);
+            draw_set_halign(fa_left);
+            
+            // BOTONES PREVIEW
+            var _btn_y = ui_y + ui_alto - 300; 
+            var _btn_w = 250; var _btn_h = 100;
+            
+            // Volver
+            var _bx_b1 = _cx - _btn_w - 20; var _bx_b2 = _cx - 20;
+            if (point_in_rectangle(device_mouse_x_to_gui(0), device_mouse_y_to_gui(0), _bx_b1, _btn_y, _bx_b2, _btn_y + _btn_h) && mouse_check_button_pressed(mb_left)) {
+                mascara_en_preview = noone;
+            }
+            // Botón Volver
+            draw_sprite_stretched_ext(spr_ui_box, 0, _bx_b1, _btn_y, _bx_b2 - _bx_b1, _btn_h, c_ltgray, 1);
+            draw_set_color(col_texto); draw_set_halign(fa_center);
+            draw_text((_bx_b1+_bx_b2)/2, _btn_y + 30, "Volver");
+            
+            // Confirmar
+            var _bx_o1 = _cx + 20; var _bx_o2 = _cx + _btn_w + 20;
+            if (point_in_rectangle(device_mouse_x_to_gui(0), device_mouse_y_to_gui(0), _bx_o1, _btn_y, _bx_o2, _btn_y + _btn_h) && mouse_check_button_pressed(mb_left)) {
+                if (global.evento_seleccionado_index != -1) global.agenda[global.evento_seleccionado_index].mascara_asignada = mascara_en_preview;
+                menu_abierto = false; global.evento_seleccionado_index = -1; mascara_en_preview = noone;
+            }
+            // Botón Confirmar
+            draw_sprite_stretched_ext(spr_ui_box, 0, _bx_o1, _btn_y, _bx_o2 - _bx_o1, _btn_h, col_acento, 1);
+            draw_set_color(c_white);
+            draw_text((_bx_o1+_bx_o2)/2, _btn_y + 30, "Confirmar");
+            draw_set_halign(fa_left);
+        }
+        draw_set_alpha(1);
+    }
+}
+else if (state == "RESULTADOS") {
+    // RESULTADOS
+    draw_set_color(col_texto); draw_set_halign(fa_center);
+    draw_text(ui_x + (ui_ancho/2), ui_y + 200, "RESUMEN");
+    draw_set_halign(fa_left);
+    
+    draw_set_color(make_color_rgb(60, 60, 60));
+    draw_text_ext(ui_x + 60, ui_y + 300, informe_final_texto, 50, ui_ancho - 120);
+    
+    var _brx1 = ui_x + 100; var _bry1 = ui_y + ui_alto - 200;
+    var _brx2 = ui_x + ui_ancho - 100; var _bry2 = ui_y + ui_alto - 100;
+    
+    // Botón Reiniciar
+    draw_sprite_stretched_ext(spr_ui_box, 0, _brx1, _bry1, _brx2 - _brx1, _bry2 - _bry1, col_acento, 1);
+    
+    draw_set_color(c_white); draw_set_halign(fa_center);
+    draw_text(ui_x + (ui_ancho/2), _bry1 + 35, "REINICIAR");
+    draw_set_halign(fa_left);
+    
+    if (mouse_check_button_pressed(mb_left)) {
+        if (point_in_rectangle(device_mouse_x_to_gui(0), device_mouse_y_to_gui(0), _brx1, _bry1, _brx2, _bry2)) game_restart();
+    }
+}
+
+// CAPA 3: MARCO
+draw_sprite(spr_Overlaycelu, 0, celu_x, celu_y);
+draw_sprite(spr_Overlaycelu2, 0, celu_x, celu_y);
