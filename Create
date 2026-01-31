@@ -1,0 +1,107 @@
+// --- ¡ESTA ES LA SOLUCIÓN! ---
+// Forzamos a que la capa de interfaz mida exactamente 1080x1920
+display_set_gui_size(1080, 1920);
+
+randomize();
+state = "AGENDA"; 
+informe_final_texto = "";
+
+// --- COLORES ---
+col_fondo_app = make_color_rgb(242, 238, 241);
+col_header = make_color_rgb(230, 70, 103);
+col_slot = make_color_rgb(255, 167, 191);
+col_slot_hover = make_color_rgb(230, 230, 250);
+col_texto = make_color_rgb(33, 33, 33);
+col_acento = make_color_rgb(117, 2, 77);
+col_error = make_color_rgb(176, 0, 32);
+col_gris_txt = make_color_rgb(230, 70, 103);
+
+// --- DIMENSIONES HD (1080 x 1920) ---
+
+// 1. EL MARCO (CELULAR FÍSICO)
+celu_ancho = 788;
+celu_alto = 1605;
+
+// Cálculo de centrado (Ahora funcionará perfecto porque la GUI mide 1080x1920)
+// display_get_gui_width() ahora devolverá 1080 gracias a la primera línea
+celu_x = (display_get_gui_width() - celu_ancho) / 2;
+celu_y = (display_get_gui_height() - celu_alto) / 2;
+
+// 2. LA PANTALLA (ÁREA UTIL DE UI)
+// Ajusta estos márgenes si tu dibujo del celular tiene bordes muy gruesos
+var _margen_lateral = 50;  
+var _margen_sup = 130;     
+var _margen_inf = 100;     
+
+ui_x = celu_x + _margen_lateral;
+ui_y = celu_y + _margen_sup;
+ui_ancho = celu_ancho - (_margen_lateral * 2);
+ui_alto = celu_alto - (_margen_sup + _margen_inf);
+
+// --- VARIABLES DE CONTROL ---
+menu_alpha = 0;      
+menu_abierto = false; 
+global.evento_seleccionado_index = -1; 
+mascara_en_preview = noone;
+
+// --- DATOS (Sprites asignados) ---
+global.lista_mascaras = [];
+
+// IMPORTANTE: Asegúrate de reemplazar 'spr_carta_placeholder' por tus sprites reales
+// Ejemplo: spr_loco, spr_sol, etc.
+var _spr = spr_carta_placeholder; 
+
+array_push(global.lista_mascaras, new Mascara("El Loco", "Espontaneidad pura", 0, 5, 10, _spr));
+array_push(global.lista_mascaras, new Mascara("La Justicia", "Fría y calculadora", 10, 2, 0, _spr));
+array_push(global.lista_mascaras, new Mascara("El Sol", "Radiante y cálido", 4, 10, 8, _spr));
+array_push(global.lista_mascaras, new Mascara("El Ermitaño", "Sabiduría solitaria", 7, 1, 1, _spr));
+array_push(global.lista_mascaras, new Mascara("La Emperatriz", "Cuidados y abundancia", 6, 9, 4, _spr));
+array_push(global.lista_mascaras, new Mascara("La Torre", "Cambio brusco", 2, 0, 10, _spr));
+
+global.agenda = [];
+array_push(global.agenda, new Evento("09:00", "Cita Médica", 8, 3, 2));
+array_push(global.agenda, new Evento("11:00", "Desayuno c/ Amigo", 2, 8, 5));
+array_push(global.agenda, new Evento("13:00", "Entrevista Laboral", 9, 4, 7));
+array_push(global.agenda, new Evento("16:00", "Voluntariado", 4, 9, 8));
+array_push(global.agenda, new Evento("19:00", "Limpieza de Casa", 6, 0, 7));
+array_push(global.agenda, new Evento("21:00", "Cita Romántica", 3, 10, 6));
+
+// --- FUNCIONES ---
+esta_en_uso = function(_mascara_chequear) {
+    var _veces = 0;
+    for (var i = 0; i < array_length(global.agenda); i++) {
+        if (global.agenda[i].mascara_asignada == _mascara_chequear) _veces++;
+    }
+    return _veces;
+}
+
+validar_agenda = function() {
+    for (var i = 0; i < array_length(global.agenda); i++) {
+        if (global.agenda[i].mascara_asignada == noone) return false;
+    }
+    var _nombres_usados = [];
+    for (var i = 0; i < array_length(global.agenda); i++) {
+        var _nombre = global.agenda[i].mascara_asignada.nombre;
+        if (array_contains(_nombres_usados, _nombre)) return false;
+        array_push(_nombres_usados, _nombre);
+    }
+    return true; 
+}
+
+finalizar_dia = function() {
+    informe_final_texto = "";
+    for (var i = 0; i < array_length(global.agenda); i++) {
+        var _evt = global.agenda[i];
+        var _mask = _evt.mascara_asignada;
+        var _total_score = (_mask.stats.formalidad - _evt.requisitos.formalidad) + 
+                           (_mask.stats.empatia - _evt.requisitos.empatia) + 
+                           (_mask.stats.energia - _evt.requisitos.energia);
+        
+        informe_final_texto += _evt.hora + " - " + _evt.titulo + "\n";
+        informe_final_texto += "M: " + _mask.nombre + " | ";
+        if (_total_score >= 0) informe_final_texto += "¡Excelente!\n\n";
+        else if (_total_score > -5) informe_final_texto += "Regular.\n\n";
+        else informe_final_texto += "Desastre.\n\n";
+    }
+    state = "RESULTADOS";
+}
